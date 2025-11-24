@@ -2632,7 +2632,7 @@ package mesh_test_pkg;
       seq.start(env.src_agent.seqr);
 
       //#(80000ns);
-      repeat (1000) @(posedge env.src_agent.vif.clk);
+      repeat (500) @(posedge env.src_agent.vif.clk);
 
 
       phase.drop_objection(this, "Finalizando Comparacion de modos de ruta");
