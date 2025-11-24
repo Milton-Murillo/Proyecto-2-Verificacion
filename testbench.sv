@@ -16,6 +16,7 @@
 //       * Contención fuerte y todos los puertos activos
 //       * Arbitraje moderado hacia un mismo destino
 //       * Router como terminal y destino
+`timescale 1ns/1ps
 `include "Router_library.sv"
 package mesh_uvm_pkg;
 
@@ -2825,7 +2826,6 @@ endpackage : mesh_test_pkg
 // - Conecta el virtual interface al ambiente UVM via config_db.
 // - Llama a run_test() (el test se selecciona con +UVM_TESTNAME).
 
-`timescale 1ns/1ps
 
 import uvm_pkg::*;
 `include "uvm_macros.svh"
