@@ -3,6 +3,15 @@ source /mnt/vol_NFS_rh003/estudiantes/archivos_config/synopsys_tools2.sh;
 vcs -Mupdate testbench.sv -o salida -full64 -sverilog -kdb -lca -debug_acc+all -deb \
 -ug_region+cell+encrypt -l log_test +lint=TFIPC-L -cm line+tgl+cond+fsm+branch+assert
 
+
+vcs -Mupdate testbench.sv -o salida \
+    -full64 -sverilog -ntb_opts uvm \
+    -kdb -lca -debug_acc+all -deb \
+    -ug_region+cell+encrypt \
+    -l log_test +lint=TFIPC-L \
+    -cm line+tgl+cond+fsm+branch+assert
+
+
 mkdir -p logs co
 
 ./salida \
