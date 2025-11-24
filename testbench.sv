@@ -2631,8 +2631,8 @@ package mesh_test_pkg;
       seq = mesh_compare_modes_seq::type_id::create("seq", this);
       seq.start(env.src_agent.seqr);
 
-      #(500ns);
-      //repeat (100) @(posedge env.src_agent.vif.clk);
+      //#(500ns);
+      repeat (100) @(posedge env.src_agent.vif.clk);
 
 
       phase.drop_objection(this, "Finalizando Comparacion de modos de ruta");
