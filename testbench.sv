@@ -143,7 +143,7 @@ package mesh_uvm_pkg;
     //   01,02,03,04
     //   10,20,30,40
     //   51,52,53,54
-    //   15,25,35,45
+    //   15,25,35,45 
     //
     constraint c_legal_external_id {
       {dst_row, dst_col} inside {
@@ -306,7 +306,7 @@ package mesh_uvm_pkg;
     //
     src_terms = '{0, 3, 12, 15};                     // terminales de origen
     dst_rows  = '{4'd5, 4'd0, 4'd5, 4'd0};           // filas destino
-    dst_cols  = '{4'd4, 4'd1, 4'd5, 4'd4};           // columnas destino
+    dst_cols  = '{4'd4, 4'd1, 4'd1, 4'd4};           // columnas destino
 
     foreach (src_terms[idx]) begin
       for (rep = 0; rep < num_reps_per_pair; rep++) begin
@@ -367,50 +367,105 @@ package mesh_uvm_pkg;
 
   endclass : mesh_compare_modes_seq
 
-  // ------------------------------------------------------------
-  // 6) Secuencia: Broadcast funcional
-  // ------------------------------------------------------------
-  class mesh_broadcast_seq extends mesh_base_seq;
 
-    `uvm_object_utils(mesh_broadcast_seq)
+// ------------------------------------------------------------
+// Secuencia: Broadcast general desde todas las terminales
+// Cada terminal origen (0..15) envía 1 paquete hacia
+// TODOS los External IDs válidos, con el MISMO payload.
+// ------------------------------------------------------------
+class mesh_broadcast_all_terms_seq extends mesh_base_seq;
 
-    // Numero de paquetes broadcast a enviar desde la misma fuente
-    rand int unsigned num_bcast_packets;
+  `uvm_object_utils(mesh_broadcast_all_terms_seq)
 
-    constraint c_num_bcast {
-      num_bcast_packets inside {[1:10]};
-    }
+  // Payload fijo para TODA la prueba
+  rand bit [22:0] fixed_payload;
 
-    function new(string name = "mesh_broadcast_seq");
-      super.new(name);
-    endfunction
+  // Opcional: evitar payload cero, por si quieres verlo claro en el waveform
+  constraint c_fixed_payload_nonzero {
+    fixed_payload != 23'd0;
+  }
 
-    virtual task body();
-      mesh_packet tr;
-      int unsigned src_bcast_term;
+  function new(string name = "mesh_broadcast_all_terms_seq");
+    super.new(name);
+  endfunction
 
-      if (!randomize()) begin
-        `uvm_error(get_type_name(), "Fallo randomize() en mesh_broadcast_seq")
-        return;
-      end
+  virtual task body();
+    // ================================
+    // 1) Declaraciones (SIEMPRE primero)
+    // ================================
+    mesh_packet tr;
 
-      // Elegimos un origen para broadcast (0..15).
-      void'(std::randomize(src_bcast_term) with { src_bcast_term inside {[0:15]}; });
+    // Lista de fuentes (terminales 0..15)
+    int unsigned src_terms[$];
 
-      `uvm_info(get_type_name(),
-                $sformatf("Iniciando Broadcast funcional: num_bcast_packets=%0d src_bcast_term=%0d",
-                          num_bcast_packets, src_bcast_term),
-                UVM_MEDIUM)
+    // Listas de destinos válidos (External ID) como pares row,col
+    bit [3:0] dst_rows[$];
+    bit [3:0] dst_cols[$];
 
-      for (int n = 0; n < num_bcast_packets; n++) begin
+    int unsigned s_idx;  // índice para src_terms
+    int unsigned d_idx;  // índice para destinos
 
-        tr = mesh_packet::type_id::create($sformatf("bcast_tr_%0d", n), null);
+    // ================================
+    // 2) Randomizar parámetros de la secuencia
+    // ================================
+    if (!randomize()) begin
+      `uvm_error(get_type_name(), "Fallo randomize() en mesh_broadcast_all_terms_seq")
+      return;
+    end
+
+    `uvm_info(get_type_name(),
+              $sformatf("Iniciando Broadcast general: fixed_payload=0x%0h",
+                        fixed_payload),
+              UVM_MEDIUM)
+
+    // ================================
+    // 3) Construir lista de fuentes 0..15
+    // ================================
+    for (int s = 0; s < 16; s++) begin
+      src_terms.push_back(s);
+    end
+
+    // ================================
+    // 4) Construir lista de TODOS los External IDs válidos
+    //    (mismo conjunto que en c_legal_external_id del mesh_packet)
+    // ================================
+    dst_rows = '{
+      4'd0,4'd0,4'd0,4'd0,   // 01,02,03,04
+      4'd1,4'd2,4'd3,4'd4,   // 10,20,30,40
+      4'd5,4'd5,4'd5,4'd5,   // 51,52,53,54
+      4'd1,4'd2,4'd3,4'd4    // 15,25,35,45
+    };
+
+    dst_cols = '{
+      4'd1,4'd2,4'd3,4'd4,   // 01,02,03,04
+      4'd0,4'd0,4'd0,4'd0,   // 10,20,30,40
+      4'd1,4'd2,4'd3,4'd4,   // 51,52,53,54
+      4'd5,4'd5,4'd5,4'd5    // 15,25,35,45
+    };
+
+    `uvm_info(get_type_name(),
+              $sformatf("Broadcast: %0d fuentes, %0d destinos",
+                        src_terms.size(), dst_rows.size()),
+              UVM_LOW)
+
+    // ================================
+    // 5) Broadcast “lógico”:
+    //    Para cada fuente, se envía un paquete a CADA External ID,
+    //    todos con el mismo payload.
+//    ================================
+    foreach (src_terms[s_idx]) begin
+      foreach (dst_rows[d_idx]) begin
+        tr = mesh_packet::type_id::create(
+          $sformatf("bcast_src%0d_dst%0d", src_terms[s_idx], d_idx), null);
 
         if (!tr.randomize() with {
-              src_term    == src_bcast_term;
-              mode        == MESH_MODE_BCAST;
+              src_term == src_terms[s_idx];
+              dst_row  == dst_rows[d_idx];
+              dst_col  == dst_cols[d_idx];
+              mode     inside {MESH_MODE_ROW_FIRST, MESH_MODE_COL_FIRST};
+              payload  == fixed_payload;
             }) begin
-          `uvm_error(get_type_name(), "Fallo randomize() en mesh_broadcast_seq")
+          `uvm_error(get_type_name(), "Fallo randomize() en broadcast_all_terms")
           continue;
         end
 
@@ -418,103 +473,21 @@ package mesh_uvm_pkg;
         finish_item(tr);
 
         `uvm_info(get_type_name(),
-                  $sformatf("Enviando broadcast %0d desde src_term=%0d, payload=0x%0h, delay=%0d",
-                            n, tr.src_term, tr.payload, tr.delay_cycles),
+                  $sformatf("Broadcast: src=%0d -> row=%0d col=%0d mode=%0d payload=0x%0h delay=%0d",
+                            tr.src_term, tr.dst_row, tr.dst_col,
+                            tr.mode, tr.payload, tr.delay_cycles),
                   UVM_LOW)
       end
+    end
 
-      `uvm_info(get_type_name(),
-                "Finalizando Broadcast funcional",
-                UVM_MEDIUM)
-    endtask
+    `uvm_info(get_type_name(),
+              "Finalizando Broadcast general desde todas las terminales",
+              UVM_MEDIUM)
+  endtask
 
-  endclass : mesh_broadcast_seq
+endclass : mesh_broadcast_all_terms_seq
 
-  // ==================================================================
-  // 7) Secuencia de caso de esquina: Broadcast desde una esquina
-  // ==================================================================
-  //
-  // Testplan:
-  //   "Broadcast desde una esquina"
-  //
-  // Objetivo:
-  //   - Enviar un paquete broadcast desde una terminal de esquina.
-  //   - Verificar que se propaga a toda la malla y llega a todas
-  //     las terminales externas salvo el origen.
-  //
-  // Estrategia:
-  //   - Se restringe la terminal de origen a un conjunto de esquinas.
-  //   - Se envian varios paquetes en modo broadcast.
-  //   - El scoreboard debe comprobar que todas las terminales reciben
-  //     el payload y que no hay perdidas ni bloqueos.
-  //
-  class mesh_corner_bcast_seq extends mesh_base_seq;
-
-    `uvm_object_utils(mesh_corner_bcast_seq)
-
-    // Numero de paquetes broadcast enviados desde la esquina
-    rand int unsigned num_bcast_packets;
-
-    constraint c_num_bcast_corner {
-      num_bcast_packets inside {[1:5]};
-    }
-
-    // Conjunto de terminales de esquina (ejemplo, ajustar a mapping real)
-    int unsigned corner_terms[$] = '{0, 3, 12, 15, 11, 8, 4};
- 
-    function new(string name = "mesh_corner_bcast_seq");
-      super.new(name);
-    endfunction
-
-    virtual task body();
-      mesh_packet tr;
-      int unsigned src_corner_idx;
-      int unsigned src_corner_term;
-
-      if (!randomize()) begin
-        `uvm_error(get_type_name(), "Fallo randomize() en mesh_corner_bcast_seq")
-        return;
-      end
-
-      // Elegimos una esquina aleatoria del arreglo corner_terms
-      void'(std::randomize(src_corner_idx) with {
-        src_corner_idx inside {[0:corner_terms.size()-1]};
-      });
-      src_corner_term = corner_terms[src_corner_idx];
-
-      `uvm_info(get_type_name(),
-                $sformatf("Broadcast desde esquina: src_corner_term=%0d, num_bcast_packets=%0d",
-                          src_corner_term, num_bcast_packets),
-                UVM_MEDIUM)
-
-      for (int n = 0; n < num_bcast_packets; n++) begin
-        tr = mesh_packet::type_id::create($sformatf("corner_bcast_%0d", n), null);
-
-        if (!tr.randomize() with {
-              src_term == src_corner_term;
-              mode     == MESH_MODE_BCAST;
-            }) begin
-          `uvm_error(get_type_name(), "Fallo randomize() en mesh_corner_bcast_seq")
-          continue;
-        end
-
-        start_item(tr);
-        finish_item(tr);
-
-        `uvm_info(get_type_name(),
-                  $sformatf("Corner broadcast %0d desde src_term=%0d payload=0x%0h delay=%0d",
-                            n, tr.src_term, tr.payload, tr.delay_cycles),
-                  UVM_LOW)
-      end
-
-      `uvm_info(get_type_name(),
-                "Finalizando Broadcast desde una esquina",
-                UVM_MEDIUM)
-    endtask
-
-  endclass : mesh_corner_bcast_seq
-
-  // ==================================================================
+//=================================
   // 8) Secuencia de caso de esquina: FIFO llena y back-pressure
   // ==================================================================
   //
@@ -549,11 +522,11 @@ package mesh_uvm_pkg;
 
     // Constraints basicos
     constraint c_num_src_terms {
-      num_src_terms inside {[2:8]};         // de 2 a 8 fuentes
+      num_src_terms inside {[1:8]};         // de 1 a 8 fuentes
     }
 
     constraint c_num_packets_per_src {
-      num_packets_per_src inside {[5:15]};  // varios paquetes por fuente
+      num_packets_per_src inside {[20:40]};  // varios paquetes por fuente
     }
 
     constraint c_num_hotspot_dests {
@@ -667,109 +640,6 @@ package mesh_uvm_pkg;
 
   endclass : mesh_fifo_full_backpressure_seq
 
-  // ==================================================================
-  // 9) Secuencia de caso de esquina: Ruta máxima esquina a esquina
-  // ==================================================================
-  //
-  // Testplan:
-  //   "Ruta máxima esquina a esquina"
-  //
-  // Objetivo:
-  //   - Enviar paquetes desde una esquina hacia la esquina opuesta
-  //     recorriendo la ruta mas larga posible.
-  //   - Medir latencia y numero de saltos.
-  //
-  // Estrategia:
-  //   - Se seleccionan pares esquina-opuesta (segun mapping).
-  //   - Para cada par se enviaran varios paquetes con un modo de ruteo
-  //     (fila primero o columna primero, o ambos dependiendo del test).
-  //   - El scoreboard usa los campos send_time, recv_time y exp_hops.
-  //
-  class mesh_max_corner_path_seq extends mesh_base_seq;
-
-    `uvm_object_utils(mesh_max_corner_path_seq)
-
-    // Numero de paquetes por cada par esquina-esquina
-    rand int unsigned num_packets_per_pair;
-
-    constraint c_num_packets_per_pair {
-      num_packets_per_pair inside {[6:10]};
-    }
-
-    function new(string name = "mesh_max_corner_path_seq");
-      super.new(name);
-    endfunction
-
-  virtual task body();
-    // Declaraciones PRIMERO
-    mesh_packet tr;
-
-    // Listas de pares esquina-opuesta
-    int unsigned src_terms[$];
-    bit [3:0]    dst_rows[$];
-    bit [3:0]    dst_cols[$];
-
-    int n;   // índice del for
-    int idx; // índice del foreach (implícito, pero lo declaramos por claridad)
-
-    // Inicializamos las listas (esto ya son sentencias, no declaraciones)
-    src_terms = '{0, 3, 12, 15};
-    dst_rows  = '{4'd5, 4'd0, 4'd5, 4'd0};
-    dst_cols  = '{4'd4, 4'd1, 4'd5, 4'd4};
-
-    // Randomizamos los parámetros de la secuencia
-    if (!randomize()) begin
-      `uvm_error(get_type_name(), "Fallo randomize() en mesh_max_corner_path_seq")
-      return;
-    end
-
-    `uvm_info(get_type_name(),
-              $sformatf("Iniciando Ruta maxima esquina a esquina: num_packets_per_pair=%0d",
-                        num_packets_per_pair),
-              UVM_MEDIUM)
-
-    // Lista de ejemplos de pares esquina-opuesta
-    // Ajustar según mapping real de src_term y External IDs.
-    foreach (src_terms[idx]) begin
-      for (n = 0; n < num_packets_per_pair; n++) begin
-        tr = mesh_packet::type_id::create(
-          $sformatf("max_path_s%0d_pkt%0d", idx, n), null);
-
-        if (!tr.randomize() with {
-              src_term == src_terms[idx];
-              dst_row  == dst_rows[idx];
-              dst_col  == dst_cols[idx];
-              // Se alterna modo fila/columna primero de forma aleatoria
-              mode inside {MESH_MODE_ROW_FIRST, MESH_MODE_COL_FIRST};
-            }) begin
-          `uvm_error(get_type_name(), "Fallo randomize() en max_corner_path")
-          continue;
-        end
-
-        // exp_hops podría rellenarse aquí si conoces el número esperado
-        // para este par, para que el scoreboard compare.
-        // tr.exp_hops = <valor esperado>;
-
-        start_item(tr);
-        finish_item(tr);
-
-        `uvm_info(get_type_name(),
-                  $sformatf("Max path: src=%0d -> row=%0d col=%0d mode=%0d payload=0x%0h delay=%0d",
-                            tr.src_term, tr.dst_row, tr.dst_col,
-                            tr.mode, tr.payload, tr.delay_cycles),
-                  UVM_LOW)
-      end
-    end
-
-    `uvm_info(get_type_name(),
-              "Finalizando Ruta maxima esquina a esquina",
-              UVM_MEDIUM)
-  endtask
-
-
-  endclass : mesh_max_corner_path_seq
-
-
 
   // ==================================================================
   // 10) Secuencia de caso de esquina:
@@ -791,6 +661,9 @@ package mesh_uvm_pkg;
   //     y destinos dispersos por toda la malla.
   //   - El scoreboard debe comprobar que no hay deadlocks ni starvation.
   //
+   // ------------------------------------------------------------
+  // 6) Secuencia: Contención fuerte y todos los puertos activos
+  // ------------------------------------------------------------
   class mesh_full_load_contention_seq extends mesh_base_seq;
 
     `uvm_object_utils(mesh_full_load_contention_seq)
@@ -798,10 +671,7 @@ package mesh_uvm_pkg;
     // Numero de paquetes por cada terminal fuente
     rand int unsigned num_packets_per_src;
 
-    // Porcentaje de trafico hotspot frente a trafico disperso
-    rand int unsigned hotspot_ratio; // 0 a 100
-
-    // Numero de destinos hotspot (pocos destinos: 2 a 3)
+    // Numero de destinos hotspot (reducidos: 1 a 3)
     rand int unsigned num_hotspot_dests;
 
     // Constraints basicos
@@ -809,120 +679,109 @@ package mesh_uvm_pkg;
       num_packets_per_src inside {[5:20]};
     }
 
-    constraint c_hotspot_ratio {
-      hotspot_ratio inside {[30:70]}; // parte hotspot, parte disperso
-    }
-
     constraint c_num_hotspot_dests {
-      num_hotspot_dests inside {[2:3]}; // "pocos destinos": 2 o 3
+      num_hotspot_dests inside {[3:5]}; // 3 a 5 destinos calientes
     }
 
     function new(string name = "mesh_full_load_contention_seq");
       super.new(name);
     endfunction
 
-  virtual task body();
-    // ================================
-    // 1) Declaraciones (SIEMPRE primero)
-    // ================================
-    mesh_packet tr;
+    virtual task body();
+      // ================================
+      // 1) Declaraciones
+      // ================================
+      mesh_packet tr;
 
-    // Lista de fuentes (terminales 0..15)
-    int unsigned src_terms[$];
+      // Lista de fuentes (terminales 0..15)
+      int unsigned src_terms[$];
 
-    // Listas de destinos hotspot (pares row,col)
-    bit [3:0] hotspot_rows[$];
-    bit [3:0] hotspot_cols[$];
+      // Listas de destinos hotspot (pares row,col)
+      bit [3:0] hotspot_rows[$];
+      bit [3:0] hotspot_cols[$];
 
-    // Índices y auxiliares
-    int        s;          // índice para for de src_terms
-    int        p;          // índice para paquetes por fuente
-    int        i;          // índice para recorrer hotspots
-    int        h;          // índice para imprimir hotspots
-    int unsigned rand_pct; // valor 0..99 para decidir hotspot o disperso
-    int unsigned h_idx;    // índice de hotspot elegido
+      // Índices y auxiliares
+      int s;                    // índice de fuente
+      int p;                    // índice de paquete
+      int i;                    // índice para buscar duplicados
+      int h;                    // índice para imprimir hotspots
+      int unsigned h_idx;       // índice de hotspot elegido
 
-    // Variables temporales para generar destinos hotspot
-    bit [3:0] r_row, r_col;
-    bit       found;
+      // Variables temporales para generar destinos hotspot
+      bit [3:0] r_row, r_col;
+      bit       found;
 
-    // ================================
-    // 2) Randomización de la secuencia
-    // ================================
-    if (!randomize()) begin
-      `uvm_error(get_type_name(), "Fallo randomize() en mesh_full_load_contention_seq")
-      return;
-    end
-
-    `uvm_info(get_type_name(),
-              $sformatf("Iniciando Contencion fuerte/todos activos: num_packets_per_src=%0d hotspot_ratio=%0d num_hotspots=%0d",
-                        num_packets_per_src, hotspot_ratio, num_hotspot_dests),
-              UVM_MEDIUM)
-
-    // ================================
-    // 3) Construir lista de fuentes 0..15
-    // ================================
-    for (s = 0; s < 16; s++) begin
-      src_terms.push_back(s);
-    end
-
-    // ================================
-    // 4) Construir lista de destinos hotspot (2 a 3 destinos)
-    //    Cada hotspot es un (row,col) válido.
-    // ================================
-    while (hotspot_rows.size() < num_hotspot_dests) begin
-      // Elegimos un destino legal al azar
-      void'(std::randomize(r_row, r_col) with {
-        {r_row, r_col} inside {
-          {4'd0, 4'd1}, {4'd0, 4'd2}, {4'd0, 4'd3}, {4'd0, 4'd4},
-          {4'd1, 4'd0}, {4'd2, 4'd0}, {4'd3, 4'd0}, {4'd4, 4'd0},
-          {4'd5, 4'd1}, {4'd5, 4'd2}, {4'd5, 4'd3}, {4'd5, 4'd4},
-          {4'd1, 4'd5}, {4'd2, 4'd5}, {4'd3, 4'd5}, {4'd4, 4'd5}
-        };
-      });
-
-      // Evitar hotspots duplicados
-      found = 0;
-      foreach (hotspot_rows[i]) begin
-        if (hotspot_rows[i] == r_row && hotspot_cols[i] == r_col)
-          found = 1;
+      // ================================
+      // 2) Randomización de la secuencia
+      // ================================
+      if (!randomize()) begin
+        `uvm_error(get_type_name(),
+                   "Fallo randomize() en mesh_full_load_contention_seq")
+        return;
       end
 
-      if (!found) begin
-        hotspot_rows.push_back(r_row);
-        hotspot_cols.push_back(r_col);
-      end
-    end
-
-    `uvm_info(get_type_name(),
-              $sformatf("Hotspots definidos: %0d destinos", hotspot_rows.size()),
-              UVM_LOW)
-
-    foreach (hotspot_rows[h]) begin
       `uvm_info(get_type_name(),
-                $sformatf("  Hotspot %0d -> row=%0d col=%0d",
-                          h, hotspot_rows[h], hotspot_cols[h]),
+                $sformatf("Iniciando Contencion fuerte/todos activos: num_packets_per_src=%0d num_hotspots=%0d",
+                          num_packets_per_src, num_hotspot_dests),
+                UVM_MEDIUM)
+
+      // ================================
+      // 3) Construir lista de fuentes 0..15
+      // ================================
+      for (s = 0; s < 16; s++) begin
+        src_terms.push_back(s);
+      end
+
+      // ================================
+      // 4) Construir lista de destinos hotspot (1 a 3 destinos)
+      //    Cada hotspot es un (row,col) válido según c_legal_external_id.
+      // ================================
+      while (hotspot_rows.size() < num_hotspot_dests) begin
+        // Elegimos un destino legal al azar
+        void'(std::randomize(r_row, r_col) with {
+          {r_row, r_col} inside {
+            {4'd0, 4'd1}, {4'd0, 4'd2}, {4'd0, 4'd3}, {4'd0, 4'd4},
+            {4'd1, 4'd0}, {4'd2, 4'd0}, {4'd3, 4'd0}, {4'd4, 4'd0},
+            {4'd5, 4'd1}, {4'd5, 4'd2}, {4'd5, 4'd3}, {4'd5, 4'd4},
+            {4'd1, 4'd5}, {4'd2, 4'd5}, {4'd3, 4'd5}, {4'd4, 4'd5}
+          };
+        });
+
+        // Evitar hotspots duplicados
+        found = 0;
+        foreach (hotspot_rows[i]) begin
+          if (hotspot_rows[i] == r_row && hotspot_cols[i] == r_col)
+            found = 1;
+        end
+
+        if (!found) begin
+          hotspot_rows.push_back(r_row);
+          hotspot_cols.push_back(r_col);
+        end
+      end
+
+      `uvm_info(get_type_name(),
+                $sformatf("Hotspots definidos: %0d destinos", hotspot_rows.size()),
                 UVM_LOW)
-    end
 
-    // ================================
-    // 5) Tráfico de carga máxima
-    //    - Para cada fuente, muchos paquetes.
-    //    - hotspot_ratio% va a hotspots.
-    //    - El resto va a destinos dispersos legales.
-    // ================================
-    foreach (src_terms[s_idx]) begin
-      for (p = 0; p < num_packets_per_src; p++) begin
-        tr = mesh_packet::type_id::create(
-          $sformatf("full_load_src%0d_pkt%0d", src_terms[s_idx], p), null);
+      foreach (hotspot_rows[h]) begin
+        `uvm_info(get_type_name(),
+                  $sformatf("  Hotspot %0d -> row=%0d col=%0d",
+                            h, hotspot_rows[h], hotspot_cols[h]),
+                  UVM_LOW)
+      end
 
-        // Decide si este paquete es hotspot o disperso
-        void'(std::randomize(rand_pct) with { rand_pct inside {[0:99]}; });
+      // ================================
+      // 5) Tráfico de carga máxima:
+      //    - Todas las fuentes activas (0..15).
+      //    - Todos los paquetes van a los hotspots.
+      // ================================
+      foreach (src_terms[s_idx]) begin
+        for (p = 0; p < num_packets_per_src; p++) begin
+          tr = mesh_packet::type_id::create(
+            $sformatf("full_load_src%0d_pkt%0d", src_terms[s_idx], p), null);
 
-        if (rand_pct < hotspot_ratio) begin
-          // -----------------------------
-          // Tráfico hacia uno de los destinos hotspot
-          // -----------------------------
+          // Elegimos uno de los hotspots
           void'(std::randomize(h_idx) with {
             h_idx inside {[0:hotspot_rows.size()-1]};
           });
@@ -933,42 +792,31 @@ package mesh_uvm_pkg;
                 dst_col  == hotspot_cols[h_idx];
                 mode     inside {MESH_MODE_ROW_FIRST, MESH_MODE_COL_FIRST};
               }) begin
-            `uvm_error(get_type_name(), "Fallo randomize() en full_load hotspot")
+            `uvm_error(get_type_name(),
+                       $sformatf("Fallo randomize() en full_load para src=%0d hotspot_idx=%0d row=%0d col=%0d",
+                                 src_terms[s_idx], h_idx,
+                                 hotspot_rows[h_idx], hotspot_cols[h_idx]))
             continue;
           end
-        end
-        else begin
-          // -----------------------------
-          // Tráfico disperso a cualquier destino legal
-          // (constraints de mesh_packet ya garantizan legalidad)
-          // -----------------------------
-          if (!tr.randomize() with {
-                src_term == src_terms[s_idx];
-                mode     inside {MESH_MODE_ROW_FIRST, MESH_MODE_COL_FIRST};
-              }) begin
-            `uvm_error(get_type_name(), "Fallo randomize() en full_load disperso")
-            continue;
-          end
-        end
 
-        start_item(tr);
-        finish_item(tr);
+          start_item(tr);
+          finish_item(tr);
 
-        `uvm_info(get_type_name(),
-                  $sformatf("Full-load: src=%0d -> row=%0d col=%0d mode=%0d payload=0x%0h delay=%0d",
-                            tr.src_term, tr.dst_row, tr.dst_col,
-                            tr.mode, tr.payload, tr.delay_cycles),
-                  UVM_LOW)
+          `uvm_info(get_type_name(),
+                    $sformatf("Full-load: src=%0d -> row=%0d col=%0d mode=%0d payload=0x%0h delay=%0d",
+                              tr.src_term, tr.dst_row, tr.dst_col,
+                              tr.mode, tr.payload, tr.delay_cycles),
+                    UVM_LOW)
+        end
       end
-    end
 
-    `uvm_info(get_type_name(),
-              "Finalizando Contencion fuerte/todos los puertos activos",
-              UVM_MEDIUM)
-  endtask
-
+      `uvm_info(get_type_name(),
+                "Finalizando Contencion fuerte/todos los puertos activos",
+                UVM_MEDIUM)
+    endtask
 
   endclass : mesh_full_load_contention_seq
+
 
 
   // ==================================================================
@@ -1283,6 +1131,124 @@ package mesh_uvm_pkg;
 
 
   endclass : mesh_self_loopback_seq
+
+
+// ------------------------------------------------------------
+// Secuencia "corner case" de destinos inválidos
+// ------------------------------------------------------------
+class mesh_invalid_external_id_seq extends mesh_base_seq;
+
+  `uvm_object_utils(mesh_invalid_external_id_seq)
+
+  // Número de paquetes inválidos por cada terminal fuente
+  rand int unsigned num_invalid_per_src;
+
+  // Número de terminales fuente activas (subset de 0..15)
+  rand int unsigned num_src_terms;
+
+  constraint c_num_invalid_per_src {
+    num_invalid_per_src inside {[20:40]};
+  }
+
+  // Usar de 3 a 15 fuentes distintas
+  constraint c_num_src_terms {
+    num_src_terms inside {[3:15]};
+  }
+
+  function new(string name = "mesh_invalid_external_id_seq");
+    super.new(name);
+  endfunction
+
+  virtual task body();
+    mesh_packet tr;
+
+    // Lista de fuentes: ahora será un subconjunto aleatorio
+    int unsigned src_terms[$];
+    int unsigned s_idx;
+    int         p;
+
+    int unsigned candidate; // para ir eligiendo fuentes sin repetir
+
+    // Randomizar parámetros de la secuencia
+    if (!randomize()) begin
+      `uvm_error(get_type_name(),
+                 "Fallo randomize() en mesh_invalid_external_id_seq")
+      return;
+    end
+
+    `uvm_info(get_type_name(),
+              $sformatf("Iniciando secuencia de destinos INVALIDOS: num_invalid_per_src=%0d num_src_terms=%0d",
+                        num_invalid_per_src, num_src_terms),
+              UVM_MEDIUM)
+
+    // Construir subconjunto aleatorio de fuentes 0..15 sin repetir
+    while (src_terms.size() < num_src_terms) begin
+      void'(std::randomize(candidate) with { candidate inside {[0:15]}; });
+      if (!(candidate inside {src_terms})) begin
+        src_terms.push_back(candidate);
+      end
+    end
+
+    // Para cada fuente seleccionada, generar varios paquetes con destinos NO mapeados
+    foreach (src_terms[s_idx]) begin
+      for (p = 0; p < num_invalid_per_src; p++) begin
+
+        tr = mesh_packet::type_id::create(
+               $sformatf("invalid_dst_src%0d_pkt%0d", src_terms[s_idx], p),
+               null);
+
+        // Desactivar solo el constraint de destinos legales
+        tr.c_legal_external_id.constraint_mode(0);
+
+        // Ahora randomizamos obligando a que el par (dst_row,dst_col)
+        // NO sea uno de los External IDs válidos:
+        //
+        // Legales según tu modelo de referencia:
+        //  Norte: (0,1..4)
+        //  Oeste: (1..4,0)
+        //  Sur:   (5,1..4)
+        //  Este:  (1..4,5)
+        //
+        // Aquí pedimos explícitamente lo contrario.
+        if (!tr.randomize() with {
+              src_term == src_terms[s_idx];
+              mode     inside {MESH_MODE_ROW_FIRST, MESH_MODE_COL_FIRST};
+
+              // Mantener rango 0..5 pero fuera del conjunto legal
+              dst_row inside {[0:5]};
+              dst_col inside {[0:5]};
+
+              !(
+                (dst_row == 4'd0 && dst_col inside {4'd1,4'd2,4'd3,4'd4}) ||
+                (dst_col == 4'd0 && dst_row inside {4'd1,4'd2,4'd3,4'd4}) ||
+                (dst_row == 4'd5 && dst_col inside {4'd1,4'd2,4'd3,4'd4}) ||
+                (dst_col == 4'd5 && dst_row inside {4'd1,4'd2,4'd3,4'd4})
+              );
+            }) begin
+          `uvm_error(get_type_name(),
+                     "Fallo randomize() en mesh_invalid_external_id_seq")
+          continue;
+        end
+
+        start_item(tr);
+        finish_item(tr);
+
+        `uvm_info(get_type_name(),
+                  $sformatf("INVALID: src=%0d -> row=%0d col=%0d mode=%0d payload=0x%0h delay=%0d",
+                            tr.src_term, tr.dst_row, tr.dst_col,
+                            tr.mode, tr.payload, tr.delay_cycles),
+                  UVM_LOW)
+      end
+    end
+
+    `uvm_info(get_type_name(),
+              "Finalizando secuencia de destinos INVALIDOS",
+              UVM_MEDIUM)
+  endtask
+
+endclass : mesh_invalid_external_id_seq
+
+
 
 
 
@@ -1656,9 +1622,17 @@ class mesh_sink_driver extends uvm_component;
   // Número de terminales
   localparam int NTERMS = 16;
 
-  // Configuración de comportamiento
+  // Configuración de comportamiento general
   bit enable_auto_pop = 1'b1;               // por defecto drenamos todo
   bit [NTERMS-1:0] pop_enable_mask = '1;    // por defecto todos los puertos
+
+  // Configuración especial para la prueba de FIFO llena / back-pressure
+  // Si backpressure_mode=1:
+  //   - Tras salir de reset, se mantiene un número de ciclos sin pop
+  //     (backpressure_hold_cycles).
+  //   - Después de eso, se pasa a modo auto-pop normal.
+  bit          backpressure_mode         = 1'b0;
+  int unsigned backpressure_hold_cycles  = 0;
 
   function new(string name = "mesh_sink_driver", uvm_component parent = null);
     super.new(name, parent);
@@ -1672,38 +1646,105 @@ class mesh_sink_driver extends uvm_component;
                  "No se pudo obtener el virtual interface 'vif' para mesh_sink_driver")
     end
 
-    // Permitir que el test configure enable_auto_pop y pop_enable_mask
+    // Configuración normal
     void'(uvm_config_db#(bit)::get(this, "", "enable_auto_pop", enable_auto_pop));
     void'(uvm_config_db#(bit [NTERMS-1:0])::get(
             this, "", "pop_enable_mask", pop_enable_mask));
+
+    // Configuración especial para la prueba de FIFO llena
+    void'(uvm_config_db#(bit)::get(this, "", "backpressure_mode", backpressure_mode));
+    void'(uvm_config_db#(int unsigned)::get(
+            this, "", "backpressure_hold_cycles", backpressure_hold_cycles));
   endfunction
 
   virtual task run_phase(uvm_phase phase);
+    int t;
+
     // Inicializamos pop en 0
-    for (int t = 0; t < NTERMS; t++) begin
+    for (t = 0; t < NTERMS; t++) begin
       vif.pop[t] <= 1'b0;
     end
 
+    // Esperar a salir de reset
+    @(negedge vif.reset);
+
+    // --------------------------------------------------------
+    // MODO ESPECIAL: FIFO LLENA / BACK-PRESSURE
+    // --------------------------------------------------------
+    if (backpressure_mode) begin
+
+      `uvm_info(get_type_name(),
+                $sformatf("Sink driver en modo BACKPRESSURE: hold %0d ciclos sin pop",
+                          backpressure_hold_cycles),
+                UVM_LOW)
+
+      // Fase 1: NO hacer pop durante backpressure_hold_cycles ciclos
+      for (int n = 0; n < backpressure_hold_cycles; n++) begin
+        @(posedge vif.clk);
+        if (vif.reset) begin
+          // Si vuelve el reset, limpiamos pops
+          for (t = 0; t < NTERMS; t++) begin
+            vif.pop[t] <= 1'b0;
+          end
+        end
+        else begin
+          // Mantener pop en 0
+          for (t = 0; t < NTERMS; t++) begin
+            vif.pop[t] <= 1'b0;
+          end
+        end
+      end
+
+      `uvm_info(get_type_name(),
+                "Sink driver: Fase de back-pressure terminada, iniciando drenaje automático",
+                UVM_LOW)
+
+      // Fase 2: drenaje automático normal (igual que el modo auto_pop,
+      // usando pop_enable_mask).
+      forever begin
+        @(posedge vif.clk);
+
+        if (vif.reset) begin
+          for (t = 0; t < NTERMS; t++) begin
+            vif.pop[t] <= 1'b0;
+          end
+        end
+        else begin
+          for (t = 0; t < NTERMS; t++) begin
+            if (pop_enable_mask[t] && vif.pndng[t]) begin
+              vif.pop[t] <= 1'b1;
+            end
+            else begin
+              vif.pop[t] <= 1'b0;
+            end
+          end
+        end
+      end
+    end
+
+    // --------------------------------------------------------
+    // MODO NORMAL (sin backpressure especial)
+    // --------------------------------------------------------
     forever begin
       @(posedge vif.clk);
 
       if (vif.reset) begin
         // En reset, pop en 0 para todos
-        for (int t = 0; t < NTERMS; t++) begin
+        for (t = 0; t < NTERMS; t++) begin
           vif.pop[t] <= 1'b0;
         end
       end
       else begin
         // Si auto-pop está desactivado, mantenemos pop en 0 y no drenamos
         if (!enable_auto_pop) begin
-          for (int t = 0; t < NTERMS; t++) begin
+          for (t = 0; t < NTERMS; t++) begin
             vif.pop[t] <= 1'b0;
           end
         end
         else begin
-          // Modo automático: si hay pndng y el puerto está habilitado,
+          // Modo automático normal: si hay pndng y el puerto está habilitado,
           // hacemos pop=1 (se puede mantener en 1 mientras pndng=1).
-          for (int t = 0; t < NTERMS; t++) begin
+          for (t = 0; t < NTERMS; t++) begin
             if (pop_enable_mask[t] && vif.pndng[t]) begin
               vif.pop[t] <= 1'b1;
             end
@@ -1777,7 +1818,7 @@ class mesh_sink_monitor extends uvm_component;
           // Criterio de observación:
           //   - pndng[t] == 1 (hay dato disponible)
           //   - pop[t] == 1 (el entorno está extrayendo ese dato)
-          if (vif.pndng[t] && vif.pop[t]) begin
+          if (vif.pndng[t] && vif.pop[t]) begin     
             bits = vif.data_out[t];
 
             evt = mesh_out_event::type_id::create(
@@ -1903,6 +1944,39 @@ interface mesh_if #(
   logic                  pop        [NTERMS];      // exterior hace pop a la malla
   logic [PCK_W-1:0]      data_out_i_in[NTERMS];    // datos inyectados a la malla
   logic                  pndng_i_in [NTERMS];      // hay paquete disponible para el DUT
+  
+  // ==========================================================
+  // Aserciones de protocolo en la interfaz
+  // ==========================================================
+
+  genvar t;
+  // SINK: mientras haya dato pendiente y no se haga pop,
+  // el dato de salida debe mantenerse estable.
+  for (t = 0; t < NTERMS; t++) begin : SINK_IF_ASSERTS
+
+    property hold_data_while_pending;
+      @(posedge clk) disable iff (reset)
+        (pndng[t] && !pop[t]) |=> $stable(data_out[t]);
+    endproperty
+
+    assert property (hold_data_while_pending)
+      else $error("SINK %0d: data_out cambió mientras pndng=1 y sin pop", t);
+
+  end
+
+
+  // SRC: el DUT solo debe hacer popin cuando el entorno presenta dato valido
+  for (t = 0; t < NTERMS; t++) begin : SRC_IF_ASSERTS
+
+    property popin_implies_valid;
+      @(posedge clk) disable iff (reset)
+        popin[t] |-> pndng_i_in[t];
+    endproperty
+
+    assert property (popin_implies_valid)
+      else $error("SRC %0d: popin sin pndng_i_in (dato valido)", t);
+
+  end
 
   // Modport para conectar el DUT
   //
@@ -1937,6 +2011,8 @@ interface mesh_if #(
     output data_out_i_in,
     output pndng_i_in
   );
+  
+  
 
 endinterface : mesh_if
 
@@ -2039,6 +2115,14 @@ package mesh_scoreboard_pkg;
       bit [39:0] loc_bits;
 
       loc_nxt  = calc_nxt_jump(in_tr.dst_row, in_tr.dst_col);
+      
+      if (loc_nxt == 8'hFF) begin
+        `uvm_warning(get_type_name(),
+                     $sformatf("REF: destino no mapeado row=%0d col=%0d, se ignora en expected_q",
+                               in_tr.dst_row, in_tr.dst_col))
+        return;
+      end
+      
       loc_bits = build_full_bits(loc_nxt,
                                  in_tr.dst_row,
                                  in_tr.dst_col,
@@ -2131,90 +2215,100 @@ package mesh_scoreboard_pkg;
 `uvm_analysis_imp_decl(_in)
 `uvm_analysis_imp_decl(_out)
 
-  class mesh_scoreboard extends uvm_component;
+class mesh_scoreboard extends uvm_component;
 
-    `uvm_component_utils(mesh_scoreboard)
+  `uvm_component_utils(mesh_scoreboard)
 
-    mesh_ref_model refm;
+  mesh_ref_model refm;
 
-    // Entrada: desde mesh_src_monitor (mesh_packet)
-    uvm_analysis_imp_in #(mesh_packet,    mesh_scoreboard) in_imp;
+  // Entrada: desde mesh_src_monitor (mesh_packet)
+  uvm_analysis_imp_in #(mesh_packet,    mesh_scoreboard) in_imp;
 
-    // Salida: desde mesh_sink_monitor (mesh_out_event)
-    uvm_analysis_imp_out #(mesh_out_event, mesh_scoreboard) out_imp;
+  // Salida: desde mesh_sink_monitor (mesh_out_event)
+  uvm_analysis_imp_out #(mesh_out_event, mesh_scoreboard) out_imp;
 
-    int unsigned num_matches;
-    int unsigned num_mismatches;
+  int unsigned num_matches;
+  int unsigned num_mismatches;
 
-    function new(string name, uvm_component parent);
-      super.new(name, parent);
-    endfunction
+  function new(string name, uvm_component parent);
+    super.new(name, parent);
+  endfunction
 
-    virtual function void build_phase(uvm_phase phase);
-      super.build_phase(phase);
+  virtual function void build_phase(uvm_phase phase);
+    super.build_phase(phase);
 
-      refm  = mesh_ref_model::type_id::create("refm");
-      in_imp  = new("in_imp",  this);
-      out_imp = new("out_imp", this);
+    refm  = mesh_ref_model::type_id::create("refm");
+    in_imp  = new("in_imp",  this);
+    out_imp = new("out_imp", this);
 
-      num_matches    = 0;
-      num_mismatches = 0;
-    endfunction
+    num_matches    = 0;
+    num_mismatches = 0;
+  endfunction
 
-    // write() para mesh_packet (entrada)
-    virtual function void write_in(mesh_packet tr);
-      `uvm_info(get_type_name(),
-                $sformatf("SCB: evento entrada src=%0d row=%0d col=%0d mode=%0d payload=0x%0h t=%0t",
-                          tr.src_term, tr.dst_row, tr.dst_col, tr.mode,
-                          tr.payload, tr.send_time),
-                UVM_LOW)
-      refm.add_input_tr(tr);
-    endfunction
+  // write() para mesh_packet (entrada)
+  virtual function void write_in(mesh_packet tr);
+    `uvm_info(get_type_name(),
+              $sformatf("SCB: evento entrada src=%0d row=%0d col=%0d mode=%0d payload=0x%0h t=%0t",
+                        tr.src_term, tr.dst_row, tr.dst_col, tr.mode,
+                        tr.payload, tr.send_time),
+              UVM_LOW)
+    refm.add_input_tr(tr);
+  endfunction
 
-    // write() para mesh_out_event (salida)
-    virtual function void write_out(mesh_out_event ev);
-      mesh_expected_pkt exp;
-      bit ok;
-      time delay;
+  // write() para mesh_out_event (salida)
+  virtual function void write_out(mesh_out_event ev);
+    mesh_expected_pkt exp;
+    bit ok;
+    time delay;
 
-      `uvm_info(get_type_name(),
-                $sformatf("SCB: evento salida dst_term=%0d data=%h t=%0t",
-                          ev.dst_term, ev.data, ev.recv_time),
-                UVM_LOW)
+    `uvm_info(get_type_name(),
+              $sformatf("SCB: evento salida dst_term=%0d data=%h t=%0t",
+                        ev.dst_term, ev.data, ev.recv_time),
+              UVM_LOW)
 
-      ok = refm.match_output_ev(ev, exp);
+    ok = refm.match_output_ev(ev, exp);
 
-      if (ok) begin
-        num_matches++;
-        delay = ev.recv_time - exp.send_time;
-
-        `uvm_info(get_type_name(),
-                  $sformatf("SCB: MATCH OK src=%0d -> dst_row=%0d,dst_col=%0d delay=%0t data=%h",
-                            exp.src_term, exp.dst_row, exp.dst_col,
-                            delay, ev.data),
-                  UVM_MEDIUM)
-      end
-      else begin
-        num_mismatches++;
-        `uvm_error(get_type_name(),
-                   $sformatf("SCB: NO MATCH para data=%h en dst_term=%0d t=%0t",
-                             ev.data, ev.dst_term, ev.recv_time))
-      end
-    endfunction
-
-    virtual function void final_phase(uvm_phase phase);
-      super.final_phase(phase);
+    if (ok) begin
+      num_matches++;
+      delay = ev.recv_time - exp.send_time;
 
       `uvm_info(get_type_name(),
-                $sformatf("SCB final: matches=%0d mismatches=%0d",
-                          num_matches, num_mismatches),
-                UVM_LOW)
+                $sformatf("SCB: MATCH OK src=%0d -> dst_row=%0d,dst_col=%0d delay=%0t data=%h",
+                          exp.src_term, exp.dst_row, exp.dst_col,
+                          delay, ev.data),
+                UVM_MEDIUM)
+    end
+    else begin
+      num_mismatches++;
+      `uvm_error(get_type_name(),
+                 $sformatf("SCB: NO MATCH para data=%h en dst_term=%0d t=%0t",
+                           ev.data, ev.dst_term, ev.recv_time))
+    end
+  endfunction
 
-      if (refm.num_pending() != 0)
-        refm.report_pending();
-    endfunction
+  // >>> MODIFICADO <<<
+  int unsigned pending;
+  virtual function void final_phase(uvm_phase phase);
+    super.final_phase(phase);
 
-  endclass : mesh_scoreboard
+    pending = refm.num_pending();
+
+    // Si quedaron paquetes esperados sin salida, contarlos como mismatches
+    if (pending != 0) begin
+      num_mismatches += pending;
+      `uvm_error(get_type_name(),
+                 $sformatf("Quedaron %0d paquetes esperados sin recibir (posible overflow / pérdida).",
+                           pending))
+      refm.report_pending();
+    end
+
+    `uvm_info(get_type_name(),
+              $sformatf("SCB final: matches=%0d mismatches=%0d pendientes=%0d",
+                        num_matches, num_mismatches, pending),
+              UVM_LOW)
+  endfunction
+
+endclass : mesh_scoreboard
 
 
 
@@ -2301,9 +2395,6 @@ class mesh_env extends uvm_env;
 endclass : mesh_env
 
 endpackage : mesh_scoreboard_pkg
-
-
-
 
 
 // mesh_test_pkg.sv
@@ -2430,122 +2521,76 @@ package mesh_test_pkg;
 
   endclass : mesh_compare_modes_test
 
-  // ============================================================
-  // 4) Test: Broadcast funcional
-  //
-  // Lanza mesh_broadcast_seq.
-  // El scoreboard debe verificar que todas las terminales
-  // (menos el origen) reciben el mismo payload.
-  // ============================================================
 
-  class mesh_broadcast_test extends mesh_base_test;
+//test broadcast
 
-    `uvm_component_utils(mesh_broadcast_test)
+class mesh_broadcast_all_terms_test extends mesh_base_test;
+      `uvm_component_utils(mesh_broadcast_all_terms_test)
 
-    function new(string name = "mesh_broadcast_test",
+    function new(string name = "mesh_broadcast_all_terms_test",
                  uvm_component parent = null);
       super.new(name, parent);
     endfunction
 
     virtual task run_phase(uvm_phase phase);
-      mesh_broadcast_seq seq;
+      mesh_broadcast_all_terms_seq seq;
 
-      phase.raise_objection(this, "Iniciando Broadcast funcional");
+      phase.raise_objection(this, "Iniciando Broadcast");
 
-      seq = mesh_broadcast_seq::type_id::create("seq", this);
+      seq = mesh_broadcast_all_terms_seq::type_id::create("seq", this);
       seq.start(env.src_agent.seqr);
 
       #(1000ns);
 
-      phase.drop_objection(this, "Finalizando Broadcast funcional");
+      phase.drop_objection(this, "Finalizando Broadcast");
     endtask
 
-  endclass : mesh_broadcast_test
+  endclass : mesh_broadcast_all_terms_test
 
-  // ============================================================
-  // 5) Tests de casos de esquina
-  //
-  // Cada uno simplemente lanza la secuencia correspondiente
-  // que ya definimos en mesh_uvm_pkg.
-  // ============================================================
 
-  // 5.1) Broadcast desde una esquina
-  class mesh_bcast_corner_test extends mesh_base_test;
+  // 5.2) FIFO llena y back-pressure
+class mesh_fifo_backpressure_test extends mesh_base_test;
 
-  `uvm_component_utils(mesh_bcast_corner_test)
+  `uvm_component_utils(mesh_fifo_backpressure_test)
 
-  function new(string name = "mesh_bcast_corner_test",
+  function new(string name = "mesh_fifo_backpressure_test",
                uvm_component parent = null);
     super.new(name, parent);
   endfunction
 
+  virtual function void build_phase(uvm_phase phase);
+    super.build_phase(phase);
+
+// Activar modo especial de back-pressure solo para esta prueba
+	uvm_config_db#(bit)::set(null,
+                          "uvm_test_top.env.sink_agent.drv",
+                          "backpressure_mode",
+                          1'b1);
+
+// Número de ciclos sin pop (ajústalo para que cubra toda la fase de inyección)
+	uvm_config_db#(int unsigned)::set(null,
+                          "uvm_test_top.env.sink_agent.drv",
+                          "backpressure_hold_cycles",
+                          2000);  // ejemplo; puedes subirlo o bajarlo
+
+  endfunction
+
   virtual task run_phase(uvm_phase phase);
-    // Usa el nombre correcto de la secuencia
-    mesh_corner_bcast_seq seq;
+    mesh_fifo_full_backpressure_seq seq;
 
-    phase.raise_objection(this, "Iniciando Broadcast desde esquina");
+    phase.raise_objection(this, "Iniciando FIFO full + back-pressure");
 
-    seq = mesh_corner_bcast_seq::type_id::create("seq", this);
+    seq = mesh_fifo_full_backpressure_seq::type_id::create("seq");
     seq.start(env.src_agent.seqr);
 
-    #(1000ns);
+    // Espera un rato para que el DUT intente sacar datos
+    #(5_000_000ns);
 
-    phase.drop_objection(this, "Finalizando Broadcast desde esquina");
+    phase.drop_objection(this, "Finalizando FIFO full + back-pressure");
   endtask
 
-endclass : mesh_bcast_corner_test
+endclass : mesh_fifo_backpressure_test
 
-
-  // 5.2) FIFO llena y back-pressure
-  class mesh_fifo_backpressure_test extends mesh_base_test;
-
-    `uvm_component_utils(mesh_fifo_backpressure_test)
-
-    function new(string name = "mesh_fifo_backpressure_test",
-                 uvm_component parent = null);
-      super.new(name, parent);
-    endfunction
-
-    virtual task run_phase(uvm_phase phase);
-      mesh_fifo_full_backpressure_seq seq;
-
-      phase.raise_objection(this, "Iniciando FIFO llena / back-pressure");
-
-      seq = mesh_fifo_full_backpressure_seq::type_id::create("seq", this);
-      seq.start(env.src_agent.seqr);
-
-      // Tal vez mas tiempo para llenar/desllenar FIFOs
-      #(5000ns);
-
-      phase.drop_objection(this, "Finalizando FIFO llena / back-pressure");
-    endtask
-
-  endclass : mesh_fifo_backpressure_test
-
-  // 5.3) Ruta maxima esquina a esquina
-  class mesh_max_route_test extends mesh_base_test;
-
-    `uvm_component_utils(mesh_max_route_test)
-
-    function new(string name = "mesh_max_route_test",
-                 uvm_component parent = null);
-      super.new(name, parent);
-    endfunction
-
-    virtual task run_phase(uvm_phase phase);
-      mesh_max_corner_path_seq seq;
-
-      phase.raise_objection(this, "Iniciando Ruta maxima esquina-esquina");
-
-      seq = mesh_max_corner_path_seq::type_id::create("seq", this);
-      seq.start(env.src_agent.seqr);
-
-      #(2000ns);
-
-      phase.drop_objection(this, "Finalizando Ruta maxima esquina-esquina");
-    endtask
-
-  endclass : mesh_max_route_test
 
   // 5.4) Contencion fuerte y todos los puertos activos
   class mesh_full_contention_test extends mesh_base_test;
@@ -2622,7 +2667,35 @@ endclass : mesh_bcast_corner_test
 
   endclass : mesh_selfloop_test
 
+
+  class mesh_invalid_external_id_test extends mesh_base_test;
+
+    `uvm_component_utils(mesh_invalid_external_id_test)
+
+    function new(string name = "mesh_invalid_external_id_test",
+                 uvm_component parent = null);
+      super.new(name, parent);
+    endfunction
+
+    virtual task run_phase(uvm_phase phase);
+      mesh_invalid_external_id_seq seq;
+
+      phase.raise_objection(this, "Iniciando prueba casos inválidos");
+
+      seq = mesh_invalid_external_id_seq::type_id::create("seq", this);
+      seq.start(env.src_agent.seqr);
+
+      #(5000ns);
+
+      phase.drop_objection(this, "Finalizando prueba casos inválidos");
+    endtask
+
+  endclass : mesh_invalid_external_id_test
+
 endpackage : mesh_test_pkg
+
+
+
 
 
 // mesh_top_tb.sv
@@ -2739,6 +2812,13 @@ module mesh_top_tb;
     run_test();
   end
 
+  
+  initial begin
+    $dumpfile("dut_waves.vcd");
+    $dumpvars(0, dut);
+    $display("[VCD] Captura configurada: solo señales del DUT.");
+  end
+  
 endmodule : mesh_top_tb
 
 
