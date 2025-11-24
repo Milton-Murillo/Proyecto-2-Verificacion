@@ -16,10 +16,11 @@
 //       * Contención fuerte y todos los puertos activos
 //       * Arbitraje moderado hacia un mismo destino
 //       * Router como terminal y destino
+
+`timescale 1ns/1ps
 `include "Router_library.sv"
-`timescale 1ns/1ps
 package mesh_uvm_pkg;
-`timescale 1ns/1ps
+
   import uvm_pkg::*;
   `include "uvm_macros.svh"
   
@@ -1990,7 +1991,7 @@ endpackage : mesh_uvm_pkg
 //
 // Interface para conectar la malla 4x4 con el ambiente UVM.
 // Refleja las mismas señales que tu testbench "manual".
-`timescale 1ns/1ps
+
 interface mesh_if #(
   parameter int ROWS   = 4,
   parameter int COLUMS = 4,
@@ -2088,7 +2089,6 @@ endinterface : mesh_if
 
 
 package mesh_scoreboard_pkg;
-`timescale 1ns/1ps
 
   import uvm_pkg::*;
   `include "uvm_macros.svh"
@@ -2528,7 +2528,6 @@ endpackage : mesh_scoreboard_pkg
 //   - typedef virtual mesh_if.tb mesh_vif_t;
 
 package mesh_test_pkg;
-`timescale 1ns/1ps
 
   import uvm_pkg::*;
   `include "uvm_macros.svh"
@@ -2839,7 +2838,6 @@ import mesh_test_pkg::*;  // tests (mesh_base_test y derivados)
 
 
 module mesh_top_tb;
-`timescale 1ns/1ps
 
   // Parámetros de la malla
   localparam int ROWS   = 4;
@@ -2933,13 +2931,8 @@ module mesh_top_tb;
   end
 
   
-  initial begin
-    $dumpfile("dut_waves.vcd");
-    $dumpvars(0, dut);
-    $display("[VCD] Captura configurada: solo señales del DUT.");
-  end
-  
 endmodule : mesh_top_tb
+
 
 
 
