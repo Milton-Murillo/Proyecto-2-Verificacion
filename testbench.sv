@@ -1450,9 +1450,38 @@ class mesh_src_monitor extends uvm_component;
   // Registro del valor anterior de popin para detectar flancos
   bit prev_popin[NTERMS];
 
+  // >>> COBERTURA: variable para muestrear transacciones
+  mesh_packet cov_tr;
+
+  // >>> COBERTURA: covergroup embebido
+  covergroup cg_src_h;
+    // Terminal origen usada
+    coverpoint cov_tr.src_term {
+      bins all_terms[] = {[0:15]};
+    }
+
+    // Destino (row,col)
+    coverpoint cov_tr.dst_row;
+    coverpoint cov_tr.dst_col;
+
+    // Modo de ruteo
+    coverpoint cov_tr.mode {
+      bins row_first = {MESH_MODE_ROW_FIRST};
+      bins col_first = {MESH_MODE_COL_FIRST};
+    }
+
+    // Cross para verificar que se ejercitan todos los External ID
+    cross cov_tr.dst_row, cov_tr.dst_col;
+
+    // Cross para ver que todas las fuentes usan ambos modos
+    cross cov_tr.src_term, cov_tr.mode;
+  endgroup
+
   function new(string name = "mesh_src_monitor", uvm_component parent = null);
     super.new(name, parent);
     ap = new("ap", this);
+    // >>> COBERTURA: instancia del covergroup
+    cg_src_h = new();
   endfunction
 
   // Obtener el virtual interface
@@ -1485,7 +1514,7 @@ class mesh_src_monitor extends uvm_component;
       else begin
         // Recorremos todas las terminales para ver si hay evento de popin
         for (int t = 0; t < NTERMS; t++) begin
-          // Detectar flanco ascendente de popin o popin activo
+          // Detectar flanco ascendente de popin
           if ((vif.popin[t] == 1'b1) && (prev_popin[t] == 1'b0)) begin
 
             // Capturamos el paquete que el DUT esta consumiendo
@@ -1497,20 +1526,11 @@ class mesh_src_monitor extends uvm_component;
             tr.src_term  = t;
             tr.send_time = $time;
 
-            // Decodificacion de campos segun tu testplan:
-            // [39:32] Nxt jump     (lo escribe el DUT, aqui lo dejamos como llega)
-            // [31:28] Row
-            // [27:24] Column
-            // [23]    Mode (mapeo simple a enum)
-            // [22:0]  Payload
+            // Decodificación de campos
             tr.nxt_jump = pkt_bits[39:32];
             tr.dst_row  = pkt_bits[31:28];
             tr.dst_col  = pkt_bits[27:24];
 
-            // Mapeo simple del bit Mode a enum:
-            //   bit = 1 -> MESH_MODE_ROW_FIRST
-            //   bit = 0 -> MESH_MODE_COL_FIRST
-            // Para broadcast se puede trabajar con otro criterio si lo deseas.
             if (pkt_bits[23] == 1'b1)
               tr.mode = MESH_MODE_ROW_FIRST;
             else
@@ -1524,6 +1544,10 @@ class mesh_src_monitor extends uvm_component;
                                 tr.dst_row, tr.dst_col, tr.mode, tr.payload),
                       UVM_LOW)
 
+            // >>> COBERTURA: copiar handle y muestrear
+            cov_tr = tr;
+            cg_src_h.sample();
+
             // Enviamos la transacción al scoreboard
             ap.write(tr);
           end
@@ -1536,6 +1560,8 @@ class mesh_src_monitor extends uvm_component;
   endtask
 
 endclass : mesh_src_monitor
+
+
 
 
 // ===============================================================
@@ -1789,9 +1815,46 @@ class mesh_sink_monitor extends uvm_component;
 
   localparam int NTERMS = 16;
 
+  // >>> COBERTURA: variable para muestrear eventos de salida
+  mesh_out_event cov_evt;
+
+  // >>> COBERTURA: covergroup embebido para salidas
+  covergroup cg_sink_h;
+
+    // Terminal de destino donde sale el paquete
+    coverpoint cov_evt.dst_term {
+      bins all_terms[] = {[0:15]};
+    }
+
+    // Row/Col decodificados en la salida
+    coverpoint cov_evt.dst_row;
+    coverpoint cov_evt.dst_col;
+
+    // Modo de ruteo observado en la salida
+    coverpoint cov_evt.mode {
+      bins row_first = {MESH_MODE_ROW_FIRST};
+      bins col_first = {MESH_MODE_COL_FIRST};
+    }
+
+    // Nxt_jump devuelto por el DUT (puedes agruparlo si quieres)
+    coverpoint cov_evt.nxt_jump;
+
+    // Cross para ver todas las External ID ejercitadas
+    cross cov_evt.dst_row, cov_evt.dst_col;
+
+    // Cross para ver qué modos aparecen en cada terminal de salida
+    cross cov_evt.dst_term, cov_evt.mode;
+
+    // Cross para ver relación entre modo y nxt_jump
+    cross cov_evt.mode, cov_evt.nxt_jump;
+
+  endgroup
+
   function new(string name = "mesh_sink_monitor", uvm_component parent = null);
     super.new(name, parent);
     ap = new("ap", this);
+    // >>> Instancia del covergroup
+    cg_sink_h = new();
   endfunction
 
   virtual function void build_phase(uvm_phase phase);
@@ -1856,6 +1919,10 @@ class mesh_sink_monitor extends uvm_component;
                                 evt.dst_row, evt.dst_col, evt.mode, evt.payload),
                       UVM_LOW)
 
+            // >>> COBERTURA: copiar handle y muestrear
+            cov_evt = evt;
+            cg_sink_h.sample();
+
             // Enviamos el evento al scoreboard
             ap.write(evt);
           end
@@ -1865,6 +1932,7 @@ class mesh_sink_monitor extends uvm_component;
   endtask
 
 endclass : mesh_sink_monitor
+
 
 
 // ===============================================================
@@ -2230,6 +2298,10 @@ class mesh_scoreboard extends uvm_component;
   int unsigned num_matches;
   int unsigned num_mismatches;
 
+  // >>> NUEVO: manejo de archivo CSV
+  int    csv_fd;
+  string csv_filename;
+
   function new(string name, uvm_component parent);
     super.new(name, parent);
   endfunction
@@ -2243,6 +2315,21 @@ class mesh_scoreboard extends uvm_component;
 
     num_matches    = 0;
     num_mismatches = 0;
+
+    // Abrir archivo CSV
+    csv_filename = "mesh_report.csv";
+    csv_fd = $fopen(csv_filename, "w");
+
+    if (csv_fd == 0) begin
+      `uvm_error(get_type_name(),
+                 $sformatf("No se pudo abrir archivo CSV '%s'", csv_filename))
+    end
+    else begin
+      // Encabezado CSV
+      // Puedes ajustar las columnas a lo que te piden exactamente
+      $fdisplay(csv_fd,
+        "send_time,src_term,dst_term,recv_time,delay,mode,payload_hex,nxt_jump,row,col");
+    end
   endfunction
 
   // write() para mesh_packet (entrada)
@@ -2277,12 +2364,34 @@ class mesh_scoreboard extends uvm_component;
                           exp.src_term, exp.dst_row, exp.dst_col,
                           delay, ev.data),
                 UVM_MEDIUM)
+
+      // >>> NUEVO: escribir línea CSV para este paquete
+      if (csv_fd != 0) begin
+        // Campos: send_time, src_term, dst_term, recv_time, delay,
+        //         mode, payload_hex, nxt_jump, row, col
+        $fdisplay(csv_fd,
+          "%0t,%0d,%0d,%0t,%0t,%0d,0x%0h,0x%0h,%0d,%0d",
+          exp.send_time,      // send_time
+          exp.src_term,       // src_term
+          ev.dst_term,        // dst_term (donde realmente salió)
+          ev.recv_time,       // recv_time
+          delay,              // delay
+          exp.mode,           // modo como entero
+          exp.payload,        // payload_hex
+          exp.nxt_jump,       // nxt_jump calculado en ref_model
+          exp.dst_row,        // row
+          exp.dst_col         // col
+        );
+      end
     end
     else begin
       num_mismatches++;
       `uvm_error(get_type_name(),
                  $sformatf("SCB: NO MATCH para data=%h en dst_term=%0d t=%0t",
                            ev.data, ev.dst_term, ev.recv_time))
+
+      // Opcional: podrías también loguear estos eventos inesperados en el CSV
+      // con send_time/delay = 0 o -1 y un comentario, si lo quieres documentar.
     end
   endfunction
 
@@ -2300,16 +2409,24 @@ class mesh_scoreboard extends uvm_component;
                  $sformatf("Quedaron %0d paquetes esperados sin recibir (posible overflow / pérdida).",
                            pending))
       refm.report_pending();
+      // Si quisieras también podrías escribirlos al CSV como "perdidos".
     end
 
     `uvm_info(get_type_name(),
               $sformatf("SCB final: matches=%0d mismatches=%0d pendientes=%0d",
                         num_matches, num_mismatches, pending),
               UVM_LOW)
+
+    // Cerrar archivo CSV
+    if (csv_fd != 0) begin
+      $fclose(csv_fd);
+      `uvm_info(get_type_name(),
+                $sformatf("Reporte CSV generado en '%s'", csv_filename),
+                UVM_LOW)
+    end
   endfunction
 
 endclass : mesh_scoreboard
-
 
 
 // mesh_env_pkg.sv
