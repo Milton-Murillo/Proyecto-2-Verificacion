@@ -1,0 +1,16 @@
+source /mnt/vol_NFS_rh003/estudiantes/archivos_config/synopsys_tools2.sh;
+
+vcs -Mupdate testbench.sv -o salida -full64 -sverilog -kdb -lca -debug_acc+all -deb \
+-ug_region+cell+encrypt -l log_test +lint=TFIPC-L -cm line+tgl+cond+fsm+branch+assert
+
+mkdir -p logs co
+
+./salida \
+  +UVM_TESTNAME=mesh_rand_connectivity_test \
+  +NUMSESSIONS=1 \
+  +TESTDURATION=30000 \
+  +TIMEOUT=30000 \
+  -cm line+tgl+cond+fsm+branch+assert \
+  -cm_dir cov/mesh_rand_connectivity_test \
+  -l logs/mesh_rand_connectivity_test.log
+
