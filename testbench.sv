@@ -2631,7 +2631,7 @@ package mesh_test_pkg;
       seq = mesh_compare_modes_seq::type_id::create("seq", this);
       seq.start(env.src_agent.seqr);
 
-      #(8000ns);
+      #(80000ns);
 
       phase.drop_objection(this, "Finalizando Comparacion de modos de ruta");
     endtask
