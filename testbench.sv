@@ -16,9 +16,8 @@
 //       * Contención fuerte y todos los puertos activos
 //       * Arbitraje moderado hacia un mismo destino
 //       * Router como terminal y destino
-
-`timescale 1ns/1ps
 `include "Router_library.sv"
+`timescale 1ns/1ps
 package mesh_uvm_pkg;
 
   import uvm_pkg::*;
