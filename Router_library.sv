@@ -1,4 +1,3 @@
-`timescale 1ns/1ps
 `ifndef FIFOS
    `include "fifo.sv"
     `define FIFOS
