@@ -17,6 +17,7 @@
 //       * Arbitraje moderado hacia un mismo destino
 //       * Router como terminal y destino
 `include "Router_library.sv"
+`timescale 1ns/1ps
 package mesh_uvm_pkg;
 `timescale 1ns/1ps
   import uvm_pkg::*;
