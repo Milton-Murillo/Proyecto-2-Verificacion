@@ -1989,7 +1989,7 @@ endpackage : mesh_uvm_pkg
 //
 // Interface para conectar la malla 4x4 con el ambiente UVM.
 // Refleja las mismas señales que tu testbench "manual".
-
+`timescale 1ns/1ps
 interface mesh_if #(
   parameter int ROWS   = 4,
   parameter int COLUMS = 4,
@@ -2087,6 +2087,7 @@ endinterface : mesh_if
 
 
 package mesh_scoreboard_pkg;
+`timescale 1ns/1ps
 
   import uvm_pkg::*;
   `include "uvm_macros.svh"
@@ -2526,6 +2527,7 @@ endpackage : mesh_scoreboard_pkg
 //   - typedef virtual mesh_if.tb mesh_vif_t;
 
 package mesh_test_pkg;
+`timescale 1ns/1ps
 
   import uvm_pkg::*;
   `include "uvm_macros.svh"
@@ -2836,6 +2838,7 @@ import mesh_test_pkg::*;  // tests (mesh_base_test y derivados)
 
 
 module mesh_top_tb;
+`timescale 1ns/1ps
 
   // Parámetros de la malla
   localparam int ROWS   = 4;
