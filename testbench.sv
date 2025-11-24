@@ -16,10 +16,10 @@
 //       * Contención fuerte y todos los puertos activos
 //       * Arbitraje moderado hacia un mismo destino
 //       * Router como terminal y destino
-`include "design.sv"
-  import uvm_pkg::*;
+`include "Router_library.sv"
 package mesh_uvm_pkg;
 
+  import uvm_pkg::*;
   `include "uvm_macros.svh"
   
 
