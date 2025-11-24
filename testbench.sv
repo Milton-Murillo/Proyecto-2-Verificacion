@@ -17,9 +17,9 @@
 //       * Arbitraje moderado hacia un mismo destino
 //       * Router como terminal y destino
 `include "design.sv"
+  import uvm_pkg::*;
 package mesh_uvm_pkg;
 
-  import uvm_pkg::*;
   `include "uvm_macros.svh"
   
 
