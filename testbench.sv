@@ -2711,7 +2711,7 @@ class mesh_fifo_backpressure_test extends mesh_base_test;
 	uvm_config_db#(int unsigned)::set(null,
                           "uvm_test_top.env.sink_agent.drv",
                           "backpressure_hold_cycles",
-                          2000);  // ejemplo; puedes subirlo o bajarlo
+                          100000);  // ejemplo; puedes subirlo o bajarlo
 
   endfunction
 
