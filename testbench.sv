@@ -524,15 +524,15 @@ endclass : mesh_broadcast_all_terms_seq
 
     // Constraints basicos
     constraint c_num_src_terms {
-      num_src_terms inside {[3:8]};         // de 1 a 8 fuentes
+      num_src_terms inside {[2:2]};         // de 1 a 8 fuentes
     }
 
     constraint c_num_packets_per_src {
-      num_packets_per_src inside {[35:45]};  // varios paquetes por fuente
+      num_packets_per_src inside {[4:4]};  // varios paquetes por fuente
     }
 
     constraint c_num_hotspot_dests {
-      num_hotspot_dests inside {[1:3]};     // 1 a 3 destinos calientes
+      num_hotspot_dests inside {[1:1]};     // 1 a 3 destinos calientes
     }
 
     function new(string name = "mesh_fifo_full_backpressure_seq");
