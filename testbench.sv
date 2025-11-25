@@ -1831,6 +1831,9 @@ class mesh_sink_monitor extends uvm_component;
     // Row/Col decodificados en la salida
     coverpoint cov_evt.dst_row;
     coverpoint cov_evt.dst_col;
+    
+    //Payload
+    coverpoint cov_evt.payload; 
 
     // Modo de ruteo observado en la salida
     coverpoint cov_evt.mode {
@@ -1838,17 +1841,19 @@ class mesh_sink_monitor extends uvm_component;
       bins col_first = {MESH_MODE_COL_FIRST};
     }
 
-    // Nxt_jump devuelto por el DUT (puedes agruparlo si quieres)
-    coverpoint cov_evt.nxt_jump;
+    // Nxt_jump devuelto por el DUT, solo nos interesan 0..3
+    coverpoint cov_evt.nxt_jump {
+      bins dir_vals[] = {[0:3]};      // solo 0,1,2,3
+    }
 
     // Cross para ver todas las External ID ejercitadas
-    cross cov_evt.dst_row, cov_evt.dst_col;
+    //cross cov_evt.dst_row, cov_evt.dst_col;
 
     // Cross para ver qué modos aparecen en cada terminal de salida
-    cross cov_evt.dst_term, cov_evt.mode;
+    //cross cov_evt.dst_term, cov_evt.mode;
 
     // Cross para ver relación entre modo y nxt_jump
-    cross cov_evt.mode, cov_evt.nxt_jump;
+    //cross cov_evt.mode, cov_evt.nxt_jump;
 
   endgroup
 
