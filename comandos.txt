@@ -25,4 +25,4 @@ mkdir -p logs co
   -l logs/mesh_rand_connectivity_test.log
 
 
-dve -fu1164 -covdir salida.vdb &
+verdi -cov -covdir salida.vdb&
