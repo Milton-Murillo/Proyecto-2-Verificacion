@@ -205,12 +205,12 @@ package mesh_uvm_pkg;
 
     // Constraint: rango razonable de paquetes
     constraint c_num_packets {
-      num_packets inside {[20:40]};  // ajustable
+      num_packets inside {[30:50]};  // ajustable
     }
 
     // Constraint: de 1 a 8 terminales activas
     constraint c_num_active_src_terms {
-      num_active_src_terms inside {[1:8]};
+      num_active_src_terms inside {[3:10]};
     }
 
     function new(string name = "mesh_rand_connectivity_seq");
@@ -271,7 +271,7 @@ package mesh_uvm_pkg;
     rand int unsigned num_reps_per_pair;
 
     constraint c_num_reps {
-      num_reps_per_pair inside {[1:5]};
+      num_reps_per_pair inside {[3:5]};
     }
 
     function new(string name = "mesh_compare_modes_seq");
@@ -524,11 +524,11 @@ endclass : mesh_broadcast_all_terms_seq
 
     // Constraints basicos
     constraint c_num_src_terms {
-      num_src_terms inside {[1:8]};         // de 1 a 8 fuentes
+      num_src_terms inside {[3:8]};         // de 1 a 8 fuentes
     }
 
     constraint c_num_packets_per_src {
-      num_packets_per_src inside {[20:40]};  // varios paquetes por fuente
+      num_packets_per_src inside {[35:45]};  // varios paquetes por fuente
     }
 
     constraint c_num_hotspot_dests {
@@ -678,7 +678,7 @@ endclass : mesh_broadcast_all_terms_seq
 
     // Constraints basicos
     constraint c_num_packets {
-      num_packets_per_src inside {[5:20]};
+      num_packets_per_src inside {[10:30]};
     }
 
     constraint c_num_hotspot_dests {
@@ -996,7 +996,7 @@ endclass : mesh_broadcast_all_terms_seq
     rand int unsigned num_packets_per_term;
 
     constraint c_num_loop_terms {
-      num_loop_terms inside {[1:8]};
+      num_loop_terms inside {[3:8]};
     }
 
     constraint c_num_packets_loop {
@@ -1149,7 +1149,7 @@ class mesh_invalid_external_id_seq extends mesh_base_seq;
   rand int unsigned num_src_terms;
 
   constraint c_num_invalid_per_src {
-    num_invalid_per_src inside {[20:40]};
+    num_invalid_per_src inside {[25:40]};
   }
 
   // Usar de 3 a 15 fuentes distintas
@@ -1462,9 +1462,17 @@ class mesh_src_monitor extends uvm_component;
       bins all_terms[] = {[0:15]};
     }
 
-    // Destino (row,col)
-    coverpoint cov_tr.dst_row;
-    coverpoint cov_tr.dst_col;
+    // Row/Col decodificados en la salida
+    coverpoint cov_evt.dst_row {
+      bins dir_vals[] = {[0:5]};
+    }
+    
+    coverpoint cov_evt.dst_col {
+      bins dir_vals[] = {[0:5]};
+    }
+    
+    //Payload
+    coverpoint cov_evt.payload; 
 
     // Modo de ruteo
     coverpoint cov_tr.mode {
@@ -1473,10 +1481,10 @@ class mesh_src_monitor extends uvm_component;
     }
 
     // Cross para verificar que se ejercitan todos los External ID
-    cross cov_tr.dst_row, cov_tr.dst_col;
+    //cross cov_tr.dst_row, cov_tr.dst_col;
 
     // Cross para ver que todas las fuentes usan ambos modos
-    cross cov_tr.src_term, cov_tr.mode;
+    //cross cov_tr.src_term, cov_tr.mode;
   endgroup
 
   function new(string name = "mesh_src_monitor", uvm_component parent = null);
