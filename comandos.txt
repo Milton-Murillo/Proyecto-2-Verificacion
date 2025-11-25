@@ -39,6 +39,14 @@ COMANDOS DE COMPILACION
   -l logs/mesh_broadcast_all_terms_test.log
 
 ./salida \
+  +UVM_TESTNAME=mesh_fifo_backpressure_test  \
+  +NUMSESSIONS=1 \
+  -cm line+tgl+cond+fsm+branch+assert \
+  -cm_dir cov/salida \
+  -cm_name mesh_moderate_arbitration_test \
+  -l logs/mesh_fifo_backpressure_test .log
+
+./salida \
   +UVM_TESTNAME=mesh_full_contention_test \
   +NUMSESSIONS=1 \
   -cm line+tgl+cond+fsm+branch+assert \
