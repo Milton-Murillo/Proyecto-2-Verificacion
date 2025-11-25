@@ -16,6 +16,8 @@
 //       * Contención fuerte y todos los puertos activos
 //       * Arbitraje moderado hacia un mismo destino
 //       * Router como terminal y destino
+
+//`timescale 1ns/1ps
 `include "Router_library.sv"
 package mesh_uvm_pkg;
 
@@ -2600,7 +2602,8 @@ package mesh_test_pkg;
       seq.start(env.src_agent.seqr);
 
       // Pequeña espera extra para que drene todo
-      #(1000ns);
+      //#(1000ns);
+      repeat (100) @(posedge env.src_agent.vif.clk);
 
       phase.drop_objection(this, "Finalizando Conectividad aleatoria");
     endtask
@@ -2634,7 +2637,6 @@ package mesh_test_pkg;
       //#(500ns);
       repeat (100) @(posedge env.src_agent.vif.clk);
 
-
       phase.drop_objection(this, "Finalizando Comparacion de modos de ruta");
     endtask
 
@@ -2659,7 +2661,8 @@ class mesh_broadcast_all_terms_test extends mesh_base_test;
       seq = mesh_broadcast_all_terms_seq::type_id::create("seq", this);
       seq.start(env.src_agent.seqr);
 
-      #(1000ns);
+      //#(1000ns);
+      repeat (100) @(posedge env.src_agent.vif.clk);
 
       phase.drop_objection(this, "Finalizando Broadcast");
     endtask
@@ -2703,7 +2706,8 @@ class mesh_fifo_backpressure_test extends mesh_base_test;
     seq.start(env.src_agent.seqr);
 
     // Espera un rato para que el DUT intente sacar datos
-    #(5_000_000ns);
+    //#(5_000_000ns);
+    repeat (100) @(posedge env.src_agent.vif.clk);
 
     phase.drop_objection(this, "Finalizando FIFO full + back-pressure");
   endtask
@@ -2729,7 +2733,8 @@ endclass : mesh_fifo_backpressure_test
       seq = mesh_full_load_contention_seq::type_id::create("seq", this);
       seq.start(env.src_agent.seqr);
 
-      #(5000ns);
+      //#(5000ns);
+      repeat (100) @(posedge env.src_agent.vif.clk);
 
       phase.drop_objection(this, "Finalizando Contencion fuerte / full load");
     endtask
@@ -2754,7 +2759,8 @@ endclass : mesh_fifo_backpressure_test
       seq = mesh_moderate_arbitration_seq::type_id::create("seq", this);
       seq.start(env.src_agent.seqr);
 
-      #(2000ns);
+      //#(2000ns);
+      repeat (100) @(posedge env.src_agent.vif.clk);
 
       phase.drop_objection(this, "Finalizando Arbitraje moderado a un destino");
     endtask
@@ -2779,7 +2785,8 @@ endclass : mesh_fifo_backpressure_test
       seq = mesh_self_loopback_seq::type_id::create("seq", this);
       seq.start(env.src_agent.seqr);
 
-      #(2000ns);
+      //#(2000ns);
+      repeat (100) @(posedge env.src_agent.vif.clk);
 
       phase.drop_objection(this, "Finalizando Router como terminal y destino");
     endtask
@@ -2804,7 +2811,8 @@ endclass : mesh_fifo_backpressure_test
       seq = mesh_invalid_external_id_seq::type_id::create("seq", this);
       seq.start(env.src_agent.seqr);
 
-      #(5000ns);
+      //#(5000ns);
+      repeat (100) @(posedge env.src_agent.vif.clk);
 
       phase.drop_objection(this, "Finalizando prueba casos inválidos");
     endtask
