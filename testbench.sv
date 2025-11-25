@@ -1463,16 +1463,16 @@ class mesh_src_monitor extends uvm_component;
     }
 
     // Row/Col decodificados en la salida
-    coverpoint cov_evt.dst_row {
+    coverpoint cov_tr.dst_row {
       bins dir_vals[] = {[0:5]};
     }
     
-    coverpoint cov_evt.dst_col {
+    coverpoint cov_tr.dst_col {
       bins dir_vals[] = {[0:5]};
     }
     
     //Payload
-    coverpoint cov_evt.payload; 
+    coverpoint cov_tr.payload; 
 
     // Modo de ruteo
     coverpoint cov_tr.mode {
