@@ -2670,7 +2670,7 @@ class mesh_broadcast_all_terms_test extends mesh_base_test;
                  uvm_component parent = null);
       super.new(name, parent);
     endfunction
-
+    
     virtual task run_phase(uvm_phase phase);
       mesh_broadcast_all_terms_seq seq;
 
@@ -2953,6 +2953,7 @@ module mesh_top_tb;
     // run_test("mesh_rand_connectivity_test");
     //
     // Si prefieres usar +UVM_TESTNAME, solo:
+    uvm_root::get().set_timeout(0, 0); // 0 = sin timeout
     run_test();
   end
 
