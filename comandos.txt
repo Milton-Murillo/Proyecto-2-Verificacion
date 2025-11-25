@@ -15,16 +15,62 @@ vcs -Mupdate testbench.sv -o salida \
 mkdir -p logs co
 
 
+COMANDOS DE COMPILACION
+
 ./salida \
   +UVM_TESTNAME=mesh_rand_connectivity_test \
   +NUMSESSIONS=1 \
-  +TESTDURATION=30000 \
-  +TIMEOUT=30000 \
   -cm line+tgl+cond+fsm+branch+assert \
-  -cm_dir cov/mesh_rand_connectivity_test \
+  -cm_dir cov/salida \
   -l logs/mesh_rand_connectivity_test.log
 
+./salida \
+  +UVM_TESTNAME=mesh_compare_modes_test \
+  +NUMSESSIONS=1 \
+  -cm line+tgl+cond+fsm+branch+assert \
+  -cm_dir cov/salida \
+  -l logs/mesh_compare_modes_test.log
+
+./salida \
+  +UVM_TESTNAME=mesh_broadcast_all_terms_test \
+  +NUMSESSIONS=1 \
+  -cm line+tgl+cond+fsm+branch+assert \
+  -cm_dir cov/salida \
+  -l logs/mesh_broadcast_all_terms_test.log
+
+./salida \
+  +UVM_TESTNAME=mesh_full_contention_test \
+  +NUMSESSIONS=1 \
+  -cm line+tgl+cond+fsm+branch+assert \
+  -cm_dir cov/salida \
+  -l logs/mesh_full_contention_test.log
+
+./salida \
+  +UVM_TESTNAME=mesh_moderate_arbitration_test \
+  +NUMSESSIONS=1 \
+  -cm line+tgl+cond+fsm+branch+assert \
+  -cm_dir cov/salida \
+  -l logs/mesh_moderate_arbitration_test.log
+
+./salida \
+  +UVM_TESTNAME=mesh_selfloop_test \
+  +NUMSESSIONS=1 \
+  -cm line+tgl+cond+fsm+branch+assert \
+  -cm_dir cov/salida \
+  -l logs/mesh_selfloop_test.log
+
+./salida \
+  +UVM_TESTNAME=mesh_invalid_external_id_test \
+  +NUMSESSIONS=1 \
+  -cm line+tgl+cond+fsm+branch+assert \
+  -cm_dir cov/salida \
+  -l logs/mesh_invalid_external_id_test.log
+
+
+Comando para covertura
 
 verdi -cov -covdir salida.vdb &
 
-rm -rfv `ls |grep -v ".*.sv\|.*.sh|.*.txt"`;
+Para borrar
+
+rm -rfv $(ls | grep -vE '.*\.sv$|.*\.txt$')
