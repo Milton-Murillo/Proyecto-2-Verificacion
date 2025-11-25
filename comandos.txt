@@ -25,4 +25,6 @@ mkdir -p logs co
   -l logs/mesh_rand_connectivity_test.log
 
 
-verdi -cov -covdir salida.vdb&
+verdi -cov -covdir salida.vdb &
+
+rm -rfv `ls |grep -v ".*.sv\|.*.sh|.*.txt"`;
