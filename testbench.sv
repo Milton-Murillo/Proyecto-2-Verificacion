@@ -1,5 +1,3 @@
-// mesh_uvm_pkg.sv
-//
 // Package UVM para la malla 4x4.
 // Contiene:
 //   - Tipo enumerado para el modo de ruteo.
@@ -31,10 +29,6 @@ package mesh_uvm_pkg;
     MESH_MODE_BCAST     = 2'b10   // Modo de ruteo de broadcast hacia múltiples destinos.
   } mesh_mode_e;
 
-  // ------------------------------------------------------------
-  // 2) Clase de transacción: mesh_packet
-  // ------------------------------------------------------------
-  //
   // Representa el paquete lógico de 40 bits a nivel de UVM.
   //
   // Campos del paquete físico según el plan de pruebas:
@@ -71,19 +65,15 @@ package mesh_uvm_pkg;
     rand bit [22:0] payload;
 
     // Campo Nxt jump de 8 bits, actualizado por el DUT durante el ruteo.
-    // No se marca como rand porque no se controla desde la generación de estímulos.
     bit  [7:0] nxt_jump;
 
     // Terminal destino esperado, derivado de las coordenadas Row y Column.
-    // Este campo proporciona una referencia clara para el scoreboard.
     int unsigned dst_term;
 
     // Retardo entre esta transacción y la siguiente en ciclos de reloj.
-    // Este valor controla el espaciado temporal del tráfico generado.
     rand int unsigned delay_cycles;
 
     // Metadatos para el scoreboard y análisis temporal.
-    // No forman parte del paquete físico enviado al DUT.
     time send_time;   // Tiempo de inyección del paquete por el driver.
     time recv_time;   // Tiempo de recepción del paquete en la terminal de destino.
     int  exp_hops;    // Número de saltos esperados que usa el scoreboard como referencia.
@@ -120,7 +110,7 @@ package mesh_uvm_pkg;
     endfunction
 
     // ----------------------------------------------------------
-    // Constraints genéricos sobre la transacción
+    // Constraints sobre la transacción
     // ----------------------------------------------------------
 
     // Restringe el rango de las terminales externas a valores válidos de 0 a 15.
@@ -140,8 +130,7 @@ package mesh_uvm_pkg;
       delay_cycles inside {[3:5]};
     }
 
-    // Constraint para destinos válidos en la malla,
-    // basado en los External Interface ID definidos:
+    // Constraint para destinos válidos en la malla
     //
     //   01,02,03,04
     //   10,20,30,40
@@ -159,7 +148,6 @@ package mesh_uvm_pkg;
     }
 
     // Convierte los campos de la transacción en un vector de 40 bits.
-    // Este vector respeta el mapeo de bits definido para el paquete físico.
     function bit [39:0] to_bits();
       bit [39:0] pkt;
       pkt = '0;                            // Inicializa el paquete en cero.
@@ -191,7 +179,6 @@ package mesh_uvm_pkg;
       super.new(name);
     endfunction
 
-    // Cuerpo de la secuencia base.
     // No genera tráfico por sí misma, solo define la estructura a heredar.
     virtual task body();
       // Esta secuencia base no instancia ni envía transacciones.
@@ -199,7 +186,6 @@ package mesh_uvm_pkg;
     endtask
 
   endclass : mesh_base_seq
-/////////////////////////////////////////////////////////////////////////////////////////////////////
   // ------------------------------------------------------------
   // 4) Secuencia: Conectividad aleatoria
   // Genera tráfico con parámetros aleatorios para verificar rutas
@@ -419,7 +405,6 @@ class mesh_broadcast_all_terms_seq extends mesh_base_seq;
   rand bit [22:0] fixed_payload;
 
   // Restringe el payload para que no tome el valor cero.
-  // Esto facilita la identificación del patrón en el waveform.
   constraint c_fixed_payload_nonzero {
     fixed_payload != 23'd0;
   }
@@ -471,7 +456,7 @@ class mesh_broadcast_all_terms_seq extends mesh_base_seq;
 
     // ================================
     // 4) Construir lista de todos los External IDs válidos
-    //    Utiliza el mismo conjunto que la constraint c_legal_external_id del mesh_packet.
+    //    conjunto de constraint c_legal_external_id del mesh_packet.
     // ================================
     dst_rows = '{
       4'd0,4'd0,4'd0,4'd0,   // Filas para 01, 02, 03, 04.
@@ -537,7 +522,6 @@ class mesh_broadcast_all_terms_seq extends mesh_base_seq;
 
 endclass : mesh_broadcast_all_terms_seq
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 //=================================
   // Secuencia de caso de esquina: FIFO llena y back-pressure
   // Genera trafico intenso desde varias fuentes hacia pocos destinos
@@ -575,11 +559,11 @@ endclass : mesh_broadcast_all_terms_seq
       super.new(name);
     endfunction
 
-  // Cuerpo de la secuencia que genera trafico denso hacia destinos hotspot.
+  // Cuerpo de la secuencia que genera trafico hacia destinos 
   virtual task body();
     mesh_packet tr;
 
-    // Declaraciones de estructuras auxiliares usadas en la generacion del trafico.
+    // Declaraciones de estructuras auxiliares 
     int unsigned src_terms[$];      // lista de fuentes activas
     int unsigned candidate;         // candidato a fuente
 
@@ -640,7 +624,7 @@ endclass : mesh_broadcast_all_terms_seq
               UVM_MEDIUM)
 
     // Genera trafico intenso: cada fuente envia varios paquetes
-    // concentrados en los destinos hotspot definidos.
+    // concentrados en los destinos definidos.
     foreach (src_terms[s_idx]) begin
       for (p = 0; p < num_packets_per_src; p++) begin
 
@@ -648,7 +632,7 @@ endclass : mesh_broadcast_all_terms_seq
         tr = mesh_packet::type_id::create(
           $sformatf("fifo_full_src%0d_pkt%0d", src_terms[s_idx], p), null);
 
-        // Elige uno de los destinos hotspot por indice.
+        // Elige uno de los destinos por indice.
         void'(std::randomize(h_idx) with {
           h_idx inside {[0:hotspot_rows.size()-1]};
         });
@@ -691,7 +675,7 @@ endclass : mesh_broadcast_all_terms_seq
   // Secuencia de caso de esquina:
   //     Contencion fuerte y todos los puertos activos
   // Genera trafico de carga maxima desde casi todas las terminales
-  // hacia un conjunto reducido de destinos hotspot.
+  // hacia un conjunto reducido de destinos
   // ==================================================================
   class mesh_full_load_contention_seq extends mesh_base_seq;
 
@@ -700,7 +684,7 @@ endclass : mesh_broadcast_all_terms_seq
     // Define la cantidad de paquetes enviados por cada terminal fuente.
     rand int unsigned num_packets_per_src;
 
-    // Define la cantidad de destinos hotspot utilizados en esta secuencia.
+    // Define la cantidad de destinos utilizados en esta secuencia.
     rand int unsigned num_hotspot_dests;
 
     // Limita el numero de paquetes por fuente a un rango de 10 a 30.
@@ -708,16 +692,16 @@ endclass : mesh_broadcast_all_terms_seq
       num_packets_per_src inside {[10:30]};
     }
 
-    // Limita el numero de destinos hotspot a un rango de 3 a 5.
+    // Limita el numero de destinos a un rango de 3 a 5.
     constraint c_num_hotspot_dests {
-      num_hotspot_dests inside {[3:5]}; // 3 a 5 destinos calientes
+      num_hotspot_dests inside {[3:5]}; 
     }
 
     function new(string name = "mesh_full_load_contention_seq");
       super.new(name);
     endfunction
 
-    // Cuerpo de la secuencia que activa todas las fuentes
+    // secuencia que activa todas las fuentes
     // y concentra el trafico en los destinos hotspot.
     virtual task body();
       // ================================
@@ -728,18 +712,18 @@ endclass : mesh_broadcast_all_terms_seq
       // Lista de fuentes, incluyendo las terminales 0 a 15.
       int unsigned src_terms[$];
 
-      // Listas de destinos hotspot representados como pares (row,col).
+      // Listas de destinos representados como pares (row,col).
       bit [3:0] hotspot_rows[$];
       bit [3:0] hotspot_cols[$];
 
-      // Indices y auxiliares para iteraciones y busqueda.
+      // Indices y auxiliares para iteraciones 
       int s;                    // indice de fuente
       int p;                    // indice de paquete
       int i;                    // indice para buscar duplicados
       int h;                    // indice para imprimir hotspots
-      int unsigned h_idx;       // indice de hotspot elegido
+      int unsigned h_idx;       // indice de destino elegido
 
-      // Variables temporales para generar destinos hotspot.
+      // Variables temporales para generar destinos 
       bit [3:0] r_row, r_col;
       bit       found;
 
@@ -768,8 +752,8 @@ endclass : mesh_broadcast_all_terms_seq
       end
 
       // ================================
-      // 4) Construir lista de destinos hotspot
-      //    Cada hotspot es un (row,col) valido segun c_legal_external_id.
+      // 4) Construir lista de destinos 
+      //    Cada destino es un (row,col) valido segun c_legal_external_id.
       // ================================
       while (hotspot_rows.size() < num_hotspot_dests) begin
         // Elige un destino valido al azar dentro del conjunto de External IDs.
@@ -782,26 +766,26 @@ endclass : mesh_broadcast_all_terms_seq
           };
         });
 
-        // Evita agregar destinos hotspot repetidos.
+        // Evita agregar destinos repetidos.
         found = 0;
         foreach (hotspot_rows[i]) begin
           if (hotspot_rows[i] == r_row && hotspot_cols[i] == r_col)
             found = 1;
         end
 
-        // Agrega el nuevo hotspot si no existe previamente.
+        // Agrega el nuevo destino si no existe previamente.
         if (!found) begin
           hotspot_rows.push_back(r_row);
           hotspot_cols.push_back(r_col);
         end
       end
 
-      // Informa cuantos destinos hotspot fueron definidos.
+      // Informa cuantos destinos fueron definidos.
       `uvm_info(get_type_name(),
                 $sformatf("Hotspots definidos: %0d destinos", hotspot_rows.size()),
                 UVM_LOW)
 
-      // Muestra cada hotspot con sus coordenadas fila y columna.
+      // Muestra cada destino con sus coordenadas fila y columna.
       foreach (hotspot_rows[h]) begin
         `uvm_info(get_type_name(),
                   $sformatf("  Hotspot %0d -> row=%0d col=%0d",
@@ -811,7 +795,7 @@ endclass : mesh_broadcast_all_terms_seq
 
       // ================================
       // 5) Trafico de carga maxima:
-      //    Todas las fuentes activas envian paquetes a los hotspots.
+      //    Todas las fuentes activas envian paquetes a los destinos.
       // ================================
       foreach (src_terms[s_idx]) begin
         for (p = 0; p < num_packets_per_src; p++) begin
@@ -824,7 +808,7 @@ endclass : mesh_broadcast_all_terms_seq
             h_idx inside {[0:hotspot_rows.size()-1]};
           });
 
-          // Randomiza la transaccion forzando que el destino sea el hotspot seleccionado.
+          // Randomiza la transaccion forzando que el destino sea el destino seleccionado.
           if (!tr.randomize() with {
                 src_term == src_terms[s_idx];
                 dst_row  == hotspot_rows[h_idx];
@@ -842,7 +826,7 @@ endclass : mesh_broadcast_all_terms_seq
           start_item(tr);
           finish_item(tr);
 
-          // Registra cada paquete de carga maxima enviado hacia los hotspots.
+          // Registra cada paquete de carga maxima enviado hacia los destinos.
           `uvm_info(get_type_name(),
                     $sformatf("Full-load: src=%0d -> row=%0d col=%0d mode=%0d payload=0x%0h delay=%0d",
                               tr.src_term, tr.dst_row, tr.dst_col,
@@ -1308,7 +1292,7 @@ endclass : mesh_invalid_external_id_seq
 // ===============================================================
 class mesh_sequencer extends uvm_sequencer #(mesh_packet);
 
-  `uvm_component_utils(mesh_sequencer)   // Registro en la factoría UVM.
+  `uvm_component_utils(mesh_sequencer)   // Registro en la fabrica UVM.
 
   // Constructor del sequencer.
   function new(string name = "mesh_sequencer", uvm_component parent = null);
@@ -1317,7 +1301,6 @@ class mesh_sequencer extends uvm_sequencer #(mesh_packet);
 
 endclass : mesh_sequencer
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 // ===============================================================
 // Driver de entrada: mesh_driver
 //
@@ -1911,7 +1894,6 @@ endclass : mesh_sink_agent
 
 endpackage : mesh_uvm_pkg
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Interface que conecta la malla 4x4 con el ambiente UVM.
 // Define reloj, reset y todas las señales necesarias entre DUT y testbench.
@@ -2002,7 +1984,6 @@ interface mesh_if #(
   
 endinterface : mesh_if
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 package mesh_scoreboard_pkg;
 
   import uvm_pkg::*;
@@ -2214,7 +2195,7 @@ package mesh_scoreboard_pkg;
   // ================================================================
   // 3) Scoreboard: mesh_scoreboard
   // Coordina la comparación entre entradas y salidas.
-  // Registra coincidencias y discrepancias y genera un archivo CSV.
+  // Registra coincidencias y mismatches y genera un archivo CSV.
   // ================================================================
 
   // Declara analysis_imp diferenciados para entrada y salida
@@ -2411,7 +2392,7 @@ package mesh_scoreboard_pkg;
   endclass : mesh_env
 
 endpackage : mesh_scoreboard_pkg
-/////////////////////////////////////////////////////////////////////////////////////////////////////
+
 package mesh_test_pkg;
 
   import uvm_pkg::*;
